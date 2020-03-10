@@ -1,6 +1,8 @@
 # frozen_string_literal: true
 
 class Game < ApplicationRecord
+  include BoardHelper
+
   ACTIVE_STATE = 'IN_PROGRESS'
   DONE_STATE = 'DONE'
   DEFAULT_MOVE_TYPE = 'MOVE'
@@ -12,11 +14,12 @@ class Game < ApplicationRecord
     end
   end
 
-  IllegalMove = Class.new(GameError)
+  InvalidColumn = Class.new(GameError)
   InvalidPlayer = Class.new(GameError)
   NotYoTurn = Class.new(GameError)
   GameIsDone = Class.new(GameError)
   PlayerNotFound = Class.new(GameError)
+  ColumnFull = Class.new(GameError)
 
   before_create :set_defaults
   before_commit :update_game_state, on: :update
@@ -50,11 +53,18 @@ class Game < ApplicationRecord
   end
 
   def make_move(column)
+    # Roll back all changes unless all operations are successful!
     Game.transaction do
       moves << build_move(column, DEFAULT_MOVE_TYPE)
+      move_index = drop_token_in(column)
+      check_for_win(move_index)
       save!
     end
     moves.last
+  end
+
+  def check_for_win(move_index)
+    finish_game if move_wins_game?(move_index) || board_full?
   end
 
   def current_move_number

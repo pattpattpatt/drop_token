@@ -6,6 +6,7 @@ application up and running.
 Things you may want to cover:
 
 * Ruby version
+This was tested on ruby 2.6.2
 
 * System dependencies
 

@@ -33,7 +33,7 @@ class DropTokenController < ApplicationController
 
   # GET /drop_token/{gameId}
   # Response:
-  # { 
+  # {
   #   "players" : ["player1", "player2"], # Initial list of players.
   #   "state": "DONE/IN_PROGRESS", # in case of draw, winner will be null, state will be DONE.
   #   "winner": "player1", # in case game is still in progess, key should not exist.
@@ -90,16 +90,19 @@ class DropTokenController < ApplicationController
   # • 404 - Game not found or player is not a part of it.
   # • 409 - Player tried to post when it’s not their turn.
   def make_move
-    with_game do
+    with_game(with_lock: true) do
+      raise Game::InvalidColumn if params[:column] <= 0 || params[:column] > game.columns
       game.make_move(params[:column])
       render json: { move: "#{game.id}/moves/#{game.current_move_number}" }
     end
-  rescue Game::IllegalMove => e
+  rescue Game::InvalidColumn => e
     render json: { code: e.message }, status: 400
   rescue Game::InvalidPlayer => e
     render json: { code: e.message }, status: 404
   rescue Game::NotYoTurn => e
     render json: { code: e.message }, status: 409
+  rescue Game::ColumnFull => e
+    render json: { code: e.message }, status: 400
   end
 
   # GET /drop_token/{gameId}/moves/{move_number}
@@ -125,7 +128,7 @@ class DropTokenController < ApplicationController
   # • 404 - Game not found or player is not a part of it.
   # • 410 - Game is already in DONE state.
   def deactivate_player
-    with_game do
+    with_game(with_lock: true) do
       game.deactivate_player(params[:player_id])
     end
     render json: {}, status: 202
@@ -137,9 +140,10 @@ class DropTokenController < ApplicationController
 
   private
 
-  def with_game
+  def with_game(with_lock: false)
     # Find game by ID and assign to instance variable
     @game = Game.find params[:game_id]
+    @game.lock! if with_lock
 
     # execute the given block of code
     yield
