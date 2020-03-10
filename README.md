@@ -10,11 +10,11 @@ This was built with Rails 6.0.2
 - (Install postgres)[https://www.postgresql.org/download/macosx/] and start the server
 - Install bundler, the ruby package manager: (instructions)[https://bundler.io/]
 
-* Database Initialization
+### Database Initialization
 Run the following commands to set up the database
   `bundle install`
   `bundle exec rails db:setup`
   `bundle exec rails db:migrate`
 
-* Run the server locally
+### Run the server locally
   `bundle exec rails s`
