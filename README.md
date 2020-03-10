@@ -12,11 +12,13 @@ This was built with Rails 6.0.2
 
 ### Database Initialization
 Run the following commands to set up the database
-
-  bundle install
-  bundle exec rails db:setup
-  bundle exec rails db:migrate
+```bash
+bundle install
+bundle exec rails db:setup
+bundle exec rails db:migrate
+```
 
 ### Run the server locally
-
+```bash
   bundle exec rails s
+```
