@@ -206,7 +206,6 @@ RSpec.describe Game do
 
     it "adds a quit move" do
       game.deactivate_player(player)
-      print game.reload.moves
       expect(game.reload.moves.last).to eq({ "type" => Game::DEACTIVATE_PLAYER_MOVE_TYPE, "player" => player})
     end
 
