@@ -3,6 +3,10 @@ class DropTokenController < ApplicationController
 
   attr_accessor :game
 
+  # Validate the params according to the param_type_map below.
+  # This should be done before every request is processed.
+  before_action :validate_params
+
   # POST /drop_token
   # Params
   # {
@@ -16,8 +20,23 @@ class DropTokenController < ApplicationController
   # • 200 - OK. On success
   # • 400 - Malformed request
   def new
-    game = Game.create!(params.permit(:columns, :rows).merge(players: JSON.parse(params[:players])))
+    # Validate that required params are present
+    params.require([:columns, :rows, :players])
+
+    # build the necessary mass assignment attributes
+    attributes = {
+      columns: params[:columns],
+      rows: params[:rows],
+      players: params[:players]
+    }
+
+    # Actually create the Game record
+    game = Game.create!(attributes)
+
+    # Respond with the preferred response hash
     render json: { gameId: game.id }
+  rescue ActionController::ParameterMissing => e
+    render json: { error: e.message }, status: 400
   end
 
   # GET /drop_token
@@ -91,8 +110,8 @@ class DropTokenController < ApplicationController
   # • 409 - Player tried to post when it’s not their turn.
   def make_move
     with_game(with_lock: true) do
-      raise Game::InvalidColumn if params[:column] <= 0 || params[:column] > game.columns
-      game.make_move(params[:column])
+      game.validate_move!(params[:column].to_i, params[:player_id])
+      game.make_move(params[:column].to_i, params[:player_id])
       render json: { move: "#{game.id}/moves/#{game.current_move_number}" }
     end
   rescue Game::InvalidColumn => e
@@ -102,6 +121,8 @@ class DropTokenController < ApplicationController
   rescue Game::NotYoTurn => e
     render json: { code: e.message }, status: 409
   rescue Game::ColumnFull => e
+    render json: { code: e.message }, status: 400
+  rescue Game::GameIsDone => e
     render json: { code: e.message }, status: 400
   end
 
@@ -142,12 +163,49 @@ class DropTokenController < ApplicationController
 
   def with_game(with_lock: false)
     # Find game by ID and assign to instance variable
-    @game = Game.find params[:game_id]
-    @game.lock! if with_lock
+    Game.transaction do
+      @game = Game.find params[:game_id]
 
-    # execute the given block of code
-    yield
+      # lock the row if we have updates
+      @game.lock! if with_lock
+
+      # execute the given block of code
+      yield
+    end
   rescue ActiveRecord::RecordNotFound
     render json: {}, status: 404
+  end
+
+  def validate_params
+    # only validate known used params
+    params_to_validate = params.select { |param, _value| !param_type_map[param].nil? }
+
+    params_to_validate.each do |param, value|
+      # Dynamically get the correct validator for each param
+      param_type_map[param].each do |validator_type|
+        validator = "#{validator_type.camelize}Validator".constantize
+        begin
+          validator.new(value).validate!
+        rescue Validator::ValidationError => e
+          render json: { error: "Validation Error: #{param} must be of type #{validator_type}" }, status: 400
+        end
+      end
+    end
+  rescue => e
+    status = 500
+  end
+
+  def param_type_map
+    {
+      "game_id" => ["uuid"],
+      "player_id" => ["alphanumeric"],
+      "column" => ["single_digit"],
+      "move_number" => ["non_negative_integer"],
+      "rows" => ["positive_integer"],
+      "columns" => ["positive_integer"],
+      "players" => ["array_of_alphanumeric", "array_of_two_dissimilar_values"],
+      "start" => ["non_negative_integer"],
+      "until" => ["non_negative_integer"]
+    }
   end
 end

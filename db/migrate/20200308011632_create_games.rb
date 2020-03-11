@@ -1,7 +1,7 @@
 class CreateGames < ActiveRecord::Migration[6.0]
   def change
     create_table :games, id: :uuid do |t|
-      t.uuid :winner
+      t.string :winner
       t.string :board, array: true
       t.text :players, array: true
       t.jsonb :moves, array: true, default: []
